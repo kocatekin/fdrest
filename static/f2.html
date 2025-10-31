@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fault Detection Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col p-6">
+
+  <!-- Header -->
+  <header class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-800">Machine Fault Detection Dashboard</h1>
+    <a href="/report" class="mt-3 inline-block bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">📄 Generate Report</a>
+    <p class="text-gray-600">Live monitoring of fault indicators</p>
+  </header>
+
+  <!-- Fault Section (side by side) -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <!-- Percentage Display -->
+    <div id="percentageBox" class="bg-white shadow rounded-2xl p-8 flex flex-col items-center justify-center">
+      <h2 class="text-2xl font-semibold text-gray-700 mb-2">Fault Probability</h2>
+      <span id="faultPercent" class="text-6xl font-extrabold text-red-600">0%</span>
+    </div>
+
+    <!-- Fault Details -->
+    <div id="faultDetails" class="bg-white shadow rounded-2xl p-6">
+      <h2 class="text-xl font-semibold mb-4">Fault Analysis</h2>
+      <div class="border rounded-xl p-4 hover:shadow-lg transition">
+        <h3 id="faultType" class="text-lg font-bold text-red-600"></h3>
+        <p id="symptoms" class="mt-2 text-gray-700">
+          <span class="font-semibold"></span>
+        </p>
+        <p id="causes" class="mt-1 text-gray-700">
+          <span class="font-semibold"></span> 
+        </p>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="metricsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  </div>
+
+  <!-- Charts Section (side by side) -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <!-- Temperature Chart -->
+    <div class="bg-white shadow rounded-2xl p-6">
+      <h2 class="text-xl font-semibold mb-4">🌡️ Temperature History</h2>
+      <div class="h-64">
+        <canvas id="temperatureChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Kurtosis Chart -->
+    <div class="bg-white shadow rounded-2xl p-6">
+      <h2 class="text-xl font-semibold mb-4">📈 Kurtosis History</h2>
+      <div class="h-64">
+        <canvas id="kurtosisChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Connect to backend WebSocket
+    const socket = io("http://localhost:5000", { transports: ["websocket"] });
+
+    // Listen for updates
+    socket.on("update_table", (data) => {
+      const row = data[0];
+      const [maxKey, maxValue] = Object.entries(row).reduce(
+        (acc, [key, value]) => value > acc[1] ? [key, value] : acc
+      );
+
+      // Update probability
+      const percent = Math.min(Math.max((maxValue / 100) * 100, 0), 100).toFixed(2);
+      document.getElementById("faultPercent").textContent = `${percent}%`;
+
+      // Update fault details 
+      const keyNumber = maxKey.slice(-1);
+      document.getElementById("faultType").textContent = `🔥 Fault Category ${keyNumber} : ${faultData[keyNumber]["Fault Category"]}`;
+      document.getElementById("symptoms").innerHTML = `<span class="font-semibold">Symptoms:</span> ${faultData[keyNumber]["Symptoms"]}`;
+      document.getElementById("causes").innerHTML = `<span class="font-semibold">Possible Root Causes:</span> ${faultData[keyNumber]["Possible Root Causes"]}`;
+
+      // Update metrics grid
+      const grid = document.getElementById("metricsGrid");
+      grid.innerHTML = "";
+      Object.entries(row).forEach(([key, value]) => {
+        const card = document.createElement("div");
+        card.className = "bg-white shadow rounded-xl p-4 flex flex-col items-center justify-center hover:shadow-lg transition";
+        card.innerHTML = `
+          <span class="text-gray-500 text-sm">${key}</span>
+          <span class="text-xl font-bold text-gray-800">${value.toFixed(3)}</span>
+        `;
+        grid.appendChild(card);
+      });
+    });
+
+    
+    // Fault category data
+    const faultData = [
+      { "Fault Category": "Ultrasonic Level", "Symptoms": "Ultrasonic level rises.", "Possible Root Causes": "Lack of Lubrication." },
+      { "Fault Category": "Ultrasonic Impulses", "Symptoms": "ULI and ultrasonic impulses.", "Possible Root Causes": "Early stage of bearing or gear damage." },
+      { "Fault Category": "Wideband Vibration Impulses", "Symptoms": "ULI, UP, vibration frequency level increases, and vibration impulses in a wide frequency range.", "Possible Root Causes": "Later stage of bearing or gear damage, wear, or cracks." },
+      { "Fault Category": "Vibration Impulses", "Symptoms": "Vibration frequency level increases, vibration impulses in a wide frequency range.", "Possible Root Causes": "Later stage of rolling element bearing wear and gear wear." },
+      { "Fault Category": "High-Frequency Vibrations", "Symptoms": "Vibration signals occurring at a high-frequency band.", "Possible Root Causes": "Gear damage and electrical motor problems such as loose rotor bars." },
+      { "Fault Category": "Rotation Frequency & Harmonics", "Symptoms": "Increase in vibration levels at the rotating speed or multiples (rpm, 2× rpm, and 3× rpm) especially on the horizontal or vertical axis.", "Possible Root Causes": "Alignment issue, bent shaft, misaligned bearing or improper clearance, rotor unbalance, and rotating looseness." },
+      { "Fault Category": "Rotation Frequency", "Symptoms": "Increase in vibration levels at the rotation speed (rpm) on the horizontal or vertical axis.", "Possible Root Causes": "Unbalance, eccentricity in gear rotor/stator unbalance, and mechanical looseness." },
+      { "Fault Category": "Low-Frequency Vibrations", "Symptoms": "Increase in low-frequency vibration levels on the horizontal or vertical axis.", "Possible Root Causes": "Eccentricity, soft foot, worn or loose belt, turbulence, and structural weakness." }
+    ];
+
+
+    // Temperature Chart
+    const tempCtx = document.getElementById("temperatureChart").getContext("2d");
+    const temperatureChart = new Chart(tempCtx, {
+      type: "line",
+      data: { labels: [], datasets: [{ label: "Temperature (°C)", data: [], borderColor: "red", fill: false }] },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    // Kurtosis Chart
+    const kurtCtx = document.getElementById("kurtosisChart").getContext("2d");
+    const kurtosisChart = new Chart(kurtCtx, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [
+          { label: "Axial", data: [], borderColor: "blue", fill: false },
+          { label: "Vertical", data: [], borderColor: "green", fill: false },
+          { label: "Horizontal", data: [], borderColor: "orange", fill: false }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    //Fetching history function
+    async function fetchHistory(metric, limit=50) {
+      const response = await fetch(`http://localhost:5000/history?metric=${metric}&limit=${limit}`);
+      return await response.json(); 
+    }
+
+    async function updateKurtosisChart() {
+      const axial = await fetchHistory("kurtosis_axial", 50);
+      const vertical = await fetchHistory("kurtosis_vertical", 50);
+      const horizontal = await fetchHistory("kurtosis_horizontal", 50);
+
+      kurtosisChart.data.labels = axial.timestamps;
+      kurtosisChart.data.datasets[0].data = axial.values;
+      kurtosisChart.data.datasets[1].data = vertical.values;
+      kurtosisChart.data.datasets[2].data = horizontal.values;
+      kurtosisChart.update();
+    }
+
+    async function updateCharts() {
+      const tempHistory = await fetchHistory("temperature", 50);
+      temperatureChart.data.labels = tempHistory.timestamps;
+      temperatureChart.data.datasets[0].data = tempHistory.values;
+      temperatureChart.update();
+
+      await updateKurtosisChart();
+    }
+
+    // Initial load + periodic refresh
+    updateCharts();
+    setInterval(updateCharts, 5000);
+  </script>
+</body>
+</html>

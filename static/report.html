@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fault Report Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col p-6">
+
+  <!-- Header -->
+  <header class="mb-6 text-center">
+    <h1 class="text-3xl font-bold text-gray-800">Fault Report Generator</h1>
+    <p class="text-gray-600">Select a date range and optionally a fault threshold to export CSV data</p>
+  </header>
+
+  <!-- Main Container -->
+  <main class="bg-white shadow rounded-2xl p-8 max-w-2xl mx-auto w-full">
+    <form id="reportForm" class="space-y-6">
+
+      <!-- Start Date -->
+      <div>
+        <label for="startDate" class="block text-gray-700 font-semibold mb-1">Start Date</label>
+        <input type="date" id="startDate" name="startDate" class="w-full p-2 border rounded-lg focus:ring focus:ring-blue-200">
+      </div>
+
+      <!-- End Date -->
+      <div>
+        <label for="endDate" class="block text-gray-700 font-semibold mb-1">End Date</label>
+        <input type="date" id="endDate" name="endDate" class="w-full p-2 border rounded-lg focus:ring focus:ring-blue-200">
+      </div>
+
+      <!-- Threshold (Optional) -->
+      <div>
+        <label for="threshold" class="block text-gray-700 font-semibold mb-1">Fault Threshold (optional)</label>
+        <input type="number" step="0.01" id="threshold" name="threshold"
+               placeholder="Leave empty to get all values"
+               class="w-full p-2 border rounded-lg focus:ring focus:ring-blue-200">
+        <p class="text-sm text-gray-500 mt-1">If left blank, all rows within the date range will be included.</p>
+      </div>
+
+      <!-- Generate Button -->
+      <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-semibold">
+        Generate CSV
+      </button>
+    </form>
+
+    <!-- Status Message -->
+    <div id="status" class="mt-6 text-center text-gray-700 font-semibold"></div>
+  </main>
+
+  <script>
+    const form = document.getElementById("reportForm");
+    const statusDiv = document.getElementById("status");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const start = document.getElementById("startDate").value;
+      const end = document.getElementById("endDate").value;
+      const threshold = document.getElementById("threshold").value.trim();
+
+      if (!start || !end) {
+        statusDiv.textContent = "⚠️ Please select both start and end dates.";
+        return;
+      }
+
+      statusDiv.textContent = "Generating report...";
+
+      try {
+        // Build query string
+        let url = `http://localhost:5000/generate_csv?start=${start}&end=${end}`;
+        if (threshold) {
+          url += `&threshold=${threshold}`;
+        }
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          const errData = await response.json();
+          statusDiv.textContent = `❌ ${errData.message || "Error generating report."}`;
+          return;
+        }
+
+        // Download CSV
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = downloadUrl;
+        a.download = `fault_report_${start}_to_${end}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        statusDiv.textContent = "Report generated successfully!";
+      } catch (error) {
+        console.error(error);
+        statusDiv.textContent = "Could not connect to the server.";
+      }
+    });
+  </script>
+
+</body>
+</html>
